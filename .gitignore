@@ -1,4 +1,4 @@
 .vscode
 a.out
 test.c
-.gch
+*.gch
