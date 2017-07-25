@@ -37,6 +37,7 @@ struct Config ParseConfigFile(const char *file_name)
     FILE *file_ptr = fopen(file_name, r);
     if (filt_ptr == NULL)
     {
+        fread(fileptr,fpstate())
     }
     return NULL;
 }
