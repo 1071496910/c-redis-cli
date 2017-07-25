@@ -33,7 +33,7 @@ struct Config Config::Initialize(const struct LogConfig that_log){
 struct Config ParseConfigFile(const char* file_name){
     FILE* file_ptr = fopen(file_name,r);
     if (filt_ptr == NULL) {
-
+        
     }
     return NULL;
 }
