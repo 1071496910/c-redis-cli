@@ -2,12 +2,12 @@
 
 #include "config.h"
 
-int main(){
+int main()
+{
     struct LogConfig log_config;
     struct Config config;
     config.Initialize(
-        log_config.Initialize("info","/tmp/tmp.conf")
-    );
+        log_config.Initialize("info", "/tmp/tmp.conf"));
 
     std::cout << config.config_log.level << std::endl;
 }
