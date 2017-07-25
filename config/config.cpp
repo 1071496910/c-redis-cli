@@ -10,4 +10,5 @@ int main()
         log_config.Initialize("info", "/tmp/tmp.conf"));
 
     std::cout << config.config_log.level << std::endl;
+    //token test
 }
