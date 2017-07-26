@@ -1,5 +1,5 @@
-#ifndef REDIS_CLI_CONFIG_CONFIG_H_
-#define REDIS_CLI_CONFIG_CONFIG_H_
+#ifndef C_REDIS_CLI_CONFIG_CONFIG_H_
+#define C_REDIS_CLI_CONFIG_CONFIG_H_
 
 #include <stdlib.h>
 #include <string.h>
@@ -42,4 +42,4 @@ struct Config ParseConfigFile(const char *file_name)
     return NULL;
 }
 
-#endif //REDIS_CLI_CONFIG_CONFIG_H_
+#endif //C_REDIS_CLI_CONFIG_CONFIG_H_
