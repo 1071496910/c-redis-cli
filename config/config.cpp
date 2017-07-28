@@ -1,22 +1,23 @@
-#include <iostream>
-
 #include "config.h"
+
 
 int main()
 {
     ConfigParser config_parser;
-    config_parser.Init("/home/hepanchen/Desktop/src/c-redis-cli/config/config.ini");
-    printf("%s\n",config_parser.GetByKey("log.level").c_str());
-    printf("%s\n",config_parser.GetByKey("log.path").c_str());
-    printf("%s\n",config_parser.GetByKey("server.ip").c_str());
-    printf("%s\n",config_parser.GetByKey("server.port").c_str());
+    config_parser.Init("/home/hpc/src/c-redis-cli/config/config.ini");
+    printf("%s\n",config_parser.GetByKey("log","log.level"));
+    printf("%s\n",config_parser.GetByKey("log","log.path"));
+    printf("%s\n",config_parser.GetByKey("server","server.ip"));
+    printf("%s\n",config_parser.GetByKey("server","server.port"));
+    //config_parser.Dump();
 
 }
 
 ConfigParser::ConfigParser():
     config_storage_(NULL),
     config_file_(""),
-    file_buffer_(NULL)
+    file_buffer_(NULL),
+    current_section_("")
 {}
 
 ConfigParser::~ConfigParser(){
@@ -95,13 +96,21 @@ char* TrimComment(char* s){
 bool IsEmptyString(const char* s){
     return s == NULL || *s == '\0';
 }
-char* ParseSession(char* s){
+
+//Return NULL 如果section
+char* ParseSection(char* s){
+    if (s==NULL){
+        return NULL;
+    }
     bool isValid = false;
-    char* tmp = ++s;
+    s = TrimFront(++s);//去除[这里的空格section]
+    char *tmp = s;
     while(tmp!=NULL&&*tmp!='\0'&&*tmp!='\n'){
         if(*tmp==']'){
             *tmp='\0';
             isValid = true;
+        } else if (*tmp==' ') {   //去除[section这里的空格]
+            *tmp='\0';
         }
         tmp++;
     }
@@ -109,7 +118,7 @@ char* ParseSession(char* s){
         fprintf(stderr, "parse file error: session %s is invalid\n", s);
         return NULL;
     }
-    //printf("DEBUG: parseSession %s\n",s);
+    //printf("DEBUG: ParseSection %s\n",s);
     return s;
 }
 
@@ -159,29 +168,29 @@ int ConfigParser::ParseKeyValue(char* s){
         return 0;
     }
     //printf("[%s]%s\n",key,value);
-    (*config_storage_)[key] = value;
+    
+    (*config_storage_)[current_section_+"_"+key] = value;
     return 0;
 }
 
 int ConfigParser::ParseRaw(char* raw){
 
-    std::string raw_status;
-    std::string session;
-
-    char* tmp;
+    
     //printf("DEBUG: before trim comment:%s\n",raw);
-    tmp = TrimComment(raw);
+    raw = TrimComment(raw);
     //printf("DEBUG: after trim comment:%s\n",tmp);
-    tmp = TrimFront(tmp);
+    raw = TrimFront(raw);
     //printf("DEBUG: after trim:%s\n",tmp);
     //in session
-    if(*tmp == '['){
-        tmp = ParseSession(tmp);
-        if(tmp != NULL){
-            session = tmp;
+    if(*raw == '['){
+        raw = ParseSection(raw);
+        if(!IsEmptyString(raw)){
+            current_section_ = raw;
         }
     }else{ //in key value
-        ParseKeyValue(tmp);
+        if (current_section_ != ""){
+            ParseKeyValue(raw);
+        }
     }
     return 0;
 }
@@ -217,10 +226,22 @@ int ConfigParser::ParseFile(){
             break;
         }
     }
+    if (file_buffer_ != NULL) {
+        delete file_buffer_;
+        file_buffer_ = NULL;
+    }
+    return 0;
 }
 
-const std::string& ConfigParser::GetByKey(const char* key){
-    return (*config_storage_)[key];
+const char* ConfigParser::GetByKey(const char* section,const char* key){
+    return (*config_storage_)[std::string(section)+"_"+key].c_str();
 }
 
 
+void ConfigParser::Dump(){
+    std::map<std::string,std::string>::iterator i;
+    for(i=config_storage_->begin();i!=config_storage_->end();i++)
+    {
+        printf("[%s]%s\n",i->first.c_str(),i->second.c_str());
+    }
+}

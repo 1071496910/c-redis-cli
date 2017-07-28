@@ -7,12 +7,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <iostream>
 
 class  ConfigParser {
 
     std::map<std::string,std::string>* config_storage_;
     std::string config_file_;
     char* file_buffer_;
+    std::string current_section_;
 
 public:
     ConfigParser();
@@ -20,7 +22,8 @@ public:
 
 public:
     int Init(const char* config_file);
-    const std::string& GetByKey(const char* key);
+    const char* GetByKey(const char* section,const char* key);
+    void Dump();
 
 private:
     int ReadFile();
