@@ -7,9 +7,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <string>
 #include <signal.h>
 
-const int kDefualtLogBufferSize = 4096;
+
 void FlushLogInBuffer(void);
 
 enum LogLevel {
@@ -21,16 +22,17 @@ enum LogLevel {
 
 class Logger {
   int log_threshold_;
+  std::string log_file_;
   FILE *log_file_ptr_;
   int log_buffed_size_;
   int log_buffer_size_;
 
-public:
   static Logger *loggerInstance_;
 
-  static Logger *
-  GetInstance(enum LogLevel that_log_threshold, const char *that_log_path,
-              const int that_log_buffer_size = kDefualtLogBufferSize);
+public:
+
+
+  static Logger *GetInstance();
 
 public:
   int Debugf(const char *format, ...);
@@ -39,11 +41,12 @@ public:
   int Errorf(const char *format, ...);
 
 public:
-  FILE *GetLogFilePtr() { return this->log_file_ptr_; }
-
+  FILE *GetLogFilePtr() { return log_file_ptr_; }
+  int Init();
 private:
-  Logger(enum LogLevel that_log_threshold, const char *that_log_path,
-         const int that_log_buffer_size = kDefualtLogBufferSize);
+  Logger(enum LogLevel that_log_threshold, const char *that_log_file,
+               const int that_log_buffer_size);
+
   Logger(const Logger &);
   Logger &operator=(const Logger &);
 
@@ -51,9 +54,8 @@ private:
   int Log(enum LogLevel log_level, const char *format, va_list ap);
 };
 
-Logger *Logger::loggerInstance_ = NULL;
 
-Logger *logger = Logger::GetInstance(LOG_LEVEL_INFO, "/tmp/tmp.log");
+
 
 void FlushLogInBuffer(void);
 

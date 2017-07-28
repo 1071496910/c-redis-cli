@@ -1,5 +1,7 @@
 #include "log.h"
 
+#ifdef DEBUG
+
 int main() {
 
   // auto logger = *new Logger(LOG_LEVEL_INFO,"/tmp/tmp.log",150);
@@ -16,57 +18,46 @@ int main() {
   // logger.Log(LOG_LEVEL_INFO,"log module Log test:%s\n","LOG");
 }
 
-void FlushLogInBuffer(void) { fclose(logger->GetLogFilePtr()); }
+#endif // DEBUG
 
-void SignalHandler(int signal_no) {
-  printf("at signal handler\n");
-  fflush(logger->GetLogFilePtr());
-  exit(1);
-}
+Logger *Logger::loggerInstance_ = NULL;
+ 
 
 class Logger;
 
-Logger::Logger(enum LogLevel that_log_threshold, const char *that_log_path,
-               const int that_log_buffer_size)
-    : log_threshold_(that_log_threshold), log_buffed_size_(0),
-      log_buffer_size_(that_log_buffer_size) {
-  // this->log_threshold_ = that_log_threshold;
-  FILE *file_ptr = fopen(that_log_path, "a");
+Logger::Logger(enum LogLevel that_log_threshold, const char *that_log_file,
+               const int that_log_buffer_size) 
+    : log_threshold_(that_log_threshold),log_file_(that_log_file), log_buffed_size_(0),
+      log_buffer_size_(that_log_buffer_size) {}
+  
+int Logger::Init() {
+  // log_threshold_ = that_log_threshold;
+  // open的参数 a
+  // Open for appending (writing at end of file).  、
+  // The file is created if it does not exist.  
+  // The stream is positioned at the end of the file.
+  FILE *file_ptr = fopen(log_file_.c_str(), "a");
   if (file_ptr != NULL) {
-    this->log_file_ptr_ = file_ptr;
+    log_file_ptr_ = file_ptr;
   } else {
-    fprintf(stderr, "open file %s error: %s\n", that_log_path, strerror(errno));
+    fprintf(stderr, "open file %s error: %s\n", log_file_.c_str(), strerror(errno));
   }
 }
 
-Logger *Logger::GetInstance(enum LogLevel that_log_threshold,
-                            const char *that_log_path,
-                            const int that_log_buffer_size) {
+Logger *Logger::GetInstance() {
 
-  if (Logger::loggerInstance_ == NULL) {
-    Logger::loggerInstance_ =
-        new Logger(that_log_threshold, that_log_path, that_log_buffer_size);
-    if (signal(SIGINT, SignalHandler) != 0) {
-      fprintf(stderr, "signal error: %s\n", strerror(errno));
-    }
-    if (signal(SIGTERM, SignalHandler) != 0) {
-      fprintf(stderr, "signal error: %s\n", strerror(errno));
-    }
-    if (signal(SIGKILL, SignalHandler) != 0) {
-      fprintf(stderr, "signal error: %s\n", strerror(errno));
-    }
-  }
+
   return Logger::loggerInstance_;
 }
 
 int Logger::Log(enum LogLevel log_level, const char *format, va_list ap) {
 
-  if (log_level >= this->log_threshold_) {
-    int n = vfprintf(this->log_file_ptr_, format, ap);
-    this->log_buffed_size_ += n;
-    if (this->log_buffed_size_ >= this->log_buffer_size_) {
-      fflush(this->log_file_ptr_);
-      this->log_buffed_size_ = 0;
+  if (log_level >= log_threshold_) {
+    int n = vfprintf(log_file_ptr_, format, ap);
+    log_buffed_size_ += n;
+    if (log_buffed_size_ >= log_buffer_size_) {
+      fflush(log_file_ptr_);
+      log_buffed_size_ = 0;
     }
 
     return n;
@@ -77,7 +68,7 @@ int Logger::Log(enum LogLevel log_level, const char *format, va_list ap) {
 int Logger::Debugf(const char *format, ...) {
   va_list ap;
   va_start(ap, format);
-  int n = this->Log(LOG_LEVEL_DEBUG, format, ap);
+  int n = Log(LOG_LEVEL_DEBUG, format, ap);
   va_end(ap);
   return n;
 }
@@ -85,7 +76,7 @@ int Logger::Debugf(const char *format, ...) {
 int Logger::Infof(const char *format, ...) {
   va_list ap;
   va_start(ap, format);
-  int n = this->Log(LOG_LEVEL_INFO, format, ap);
+  int n = Log(LOG_LEVEL_INFO, format, ap);
   va_end(ap);
   return n;
 }
@@ -93,7 +84,7 @@ int Logger::Infof(const char *format, ...) {
 int Logger::Warnf(const char *format, ...) {
   va_list ap;
   va_start(ap, format);
-  int n = this->Log(LOG_LEVEL_WARN, format, ap);
+  int n = Log(LOG_LEVEL_WARN, format, ap);
   va_end(ap);
   return n;
 }
@@ -101,7 +92,7 @@ int Logger::Warnf(const char *format, ...) {
 int Logger::Errorf(const char *format, ...) {
   va_list ap;
   va_start(ap, format);
-  int n = this->Log(LOG_LEVEL_ERROR, format, ap);
+  int n = Log(LOG_LEVEL_ERROR, format, ap);
   va_end(ap);
   return n;
 }

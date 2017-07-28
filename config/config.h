@@ -15,8 +15,8 @@ struct LogConfig
 
 LogConfig LogConfig::Initialize(const char *that_level, const char *that_path)
 {
-    memcpy(this->level, that_level, strlen(that_level) + 1);
-    memcpy(this->path, that_path, strlen(that_path) + 1);
+    memcpy(level, that_level, strlen(that_level) + 1);
+    memcpy(path, that_path, strlen(that_path) + 1);
     return *this;
 }
 
@@ -29,7 +29,7 @@ struct Config
 
 struct Config Config::Initialize(const struct LogConfig that_log)
 {
-    this->config_log.Initialize(that_log.level, that_log.path);
+    config_log.Initialize(that_log.level, that_log.path);
 }
 
 struct Config ParseConfigFile(const char *file_name)
