@@ -1,21 +1,63 @@
 #include "log.h"
 
+
+const char *LogLevelString[4] = {
+    "DEBUG",
+    "INFO",
+    "WARN",
+    "ERROR"
+};
+
+
+#define LOGDEBUG(fmt,...) \
+  do {                                                                                  \
+    if ( LOG_LEVEL_DEBUG >= Logger::GetInstance()->GetLogThreshold()){                  \
+        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    }                                                                                   \
+  }while(0)
+
+#define LOGINFO(fmt,...) \
+  do {                                                                                  \
+    if ( LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
+        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    }                                                                                   \
+  }while(0)
+
+#define LOGWARN(fmt,...) \
+  do {                                                                                  \
+    if ( LOG_LEVEL_WARN >= Logger::GetInstance()->GetLogThreshold()){                   \
+        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    }                                                                                   \
+  }while(0)
+
+#define LOGERROR(fmt,...) \
+  do {                                                                                  \
+    if ( LOG_LEVEL_ERROR >= Logger::GetInstance()->GetLogThreshold()){                  \
+        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    }                                                                                   \
+  }while(0)
+
+
+void FlushLogInBuffer(void);
+
+const int kDefaultLogThreshold = LOG_LEVEL_INFO;
+std::string kDefualtLogFile = "/tmp/tmp.log";
+const int kDefaultBufferSize = 128;
+
+typedef struct tm timeinfo;
+
+#define DEBUG
 #ifdef DEBUG
 
 int main() {
 
-  // auto logger = *new Logger(LOG_LEVEL_INFO,"/tmp/tmp.log",150);
-
-  logger->Debugf("log module test:%s%d%s\n", "DEBUG", "INFO", "WARN");
-  logger->Infof("log module test:%s%d%s\n", "INFO", "WARN", "ERROR");
+  Logger::GetInstance()->Init();
 
   for (int i = 0; i < 100; i++) {
-    logger->Infof("No.%d: log module test:%s%d%s\n", i, "INFO", "WARN",
-                  "ERROR");
-    printf("No.%d\n logged\n", i);
+    printf("%d\n",i);
+    LOGINFO("No.%d: log module test:%s%d%s\n", i, "INFO", "WARN","ERROR");
     sleep(1);
   };
-  // logger.Log(LOG_LEVEL_INFO,"log module Log test:%s\n","LOG");
 }
 
 #endif // DEBUG
@@ -25,17 +67,13 @@ Logger *Logger::loggerInstance_ = NULL;
 
 class Logger;
 
-Logger::Logger(enum LogLevel that_log_threshold, const char *that_log_file,
-               const int that_log_buffer_size) 
-    : log_threshold_(that_log_threshold),log_file_(that_log_file), log_buffed_size_(0),
-      log_buffer_size_(that_log_buffer_size) {}
+Logger::Logger() 
+    : log_threshold_(kDefaultLogThreshold),
+      log_file_(kDefualtLogFile),
+      log_buffed_size_(0),
+      log_buffer_size_(kDefaultBufferSize) {}
   
 int Logger::Init() {
-  // log_threshold_ = that_log_threshold;
-  // open的参数 a
-  // Open for appending (writing at end of file).  、
-  // The file is created if it does not exist.  
-  // The stream is positioned at the end of the file.
   FILE *file_ptr = fopen(log_file_.c_str(), "a");
   if (file_ptr != NULL) {
     log_file_ptr_ = file_ptr;
@@ -45,15 +83,36 @@ int Logger::Init() {
 }
 
 Logger *Logger::GetInstance() {
-
+  if(Logger::loggerInstance_ == NULL){
+      Logger::loggerInstance_ = new Logger;
+  }
 
   return Logger::loggerInstance_;
 }
 
-int Logger::Log(enum LogLevel log_level, const char *format, va_list ap) {
+int Logger::Log(const char* file,const int line,const char* func,const char *format, ...) {
 
-  if (log_level >= log_threshold_) {
+    struct timeval currentTime;
+    gettimeofday(&currentTime,NULL);
+    tm *timeinfos = localtime(&(currentTime.tv_sec));   
+    fprintf(log_file_ptr_,"[%d-%d-%d %d:%d:%d:%d] %s:%d %s [%s] ",  
+                    timeinfos->tm_year+1900,    
+                    timeinfos->tm_mon+1,       
+                    timeinfos->tm_mday,  
+                    timeinfos->tm_hour,  
+                    timeinfos->tm_min,  
+                    timeinfos->tm_sec,
+                    currentTime.tv_usec,
+                    file,
+                    line,
+                    func,
+                    LogLevelString[LOG_LEVEL_INFO]
+                    );
+
+    va_list ap;
+    va_start(ap,format);
     int n = vfprintf(log_file_ptr_, format, ap);
+    va_end(ap);
     log_buffed_size_ += n;
     if (log_buffed_size_ >= log_buffer_size_) {
       fflush(log_file_ptr_);
@@ -61,38 +120,5 @@ int Logger::Log(enum LogLevel log_level, const char *format, va_list ap) {
     }
 
     return n;
-  }
-  return 0;
 }
 
-int Logger::Debugf(const char *format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  int n = Log(LOG_LEVEL_DEBUG, format, ap);
-  va_end(ap);
-  return n;
-}
-
-int Logger::Infof(const char *format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  int n = Log(LOG_LEVEL_INFO, format, ap);
-  va_end(ap);
-  return n;
-}
-
-int Logger::Warnf(const char *format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  int n = Log(LOG_LEVEL_WARN, format, ap);
-  va_end(ap);
-  return n;
-}
-
-int Logger::Errorf(const char *format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  int n = Log(LOG_LEVEL_ERROR, format, ap);
-  va_end(ap);
-  return n;
-}

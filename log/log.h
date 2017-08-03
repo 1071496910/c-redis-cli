@@ -2,6 +2,7 @@
 #define C_REDIS_CLI_LOG_LOG_H_
 
 #include <string.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -9,9 +10,6 @@
 #include <stdlib.h>
 #include <string>
 #include <signal.h>
-
-
-void FlushLogInBuffer(void);
 
 enum LogLevel {
   LOG_LEVEL_DEBUG = 0,
@@ -35,30 +33,19 @@ public:
   static Logger *GetInstance();
 
 public:
-  int Debugf(const char *format, ...);
-  int Infof(const char *format, ...);
-  int Warnf(const char *format, ...);
-  int Errorf(const char *format, ...);
+  int Log(const char* file,const int line,const char* func,const char *format, ...);
 
 public:
   FILE *GetLogFilePtr() { return log_file_ptr_; }
+  int   GetLogThreshold() { return log_threshold_; }
   int Init();
 private:
-  Logger(enum LogLevel that_log_threshold, const char *that_log_file,
-               const int that_log_buffer_size);
+  Logger();
 
   Logger(const Logger &);
   Logger &operator=(const Logger &);
 
 private:
-  int Log(enum LogLevel log_level, const char *format, va_list ap);
 };
-
-
-
-
-void FlushLogInBuffer(void);
-
-void SignalHandler(int signal_no);
 
 #endif //C_REDIS_CLI_LOG_LOG_H_
