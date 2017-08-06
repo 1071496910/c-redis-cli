@@ -1,45 +1,34 @@
 #ifndef C_REDIS_CLI_CONFIG_CONFIG_H_
 #define C_REDIS_CLI_CONFIG_CONFIG_H_
 
-#include <stdlib.h>
-#include <string.h>
+#include <map>
+#include <string>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-struct LogConfig
-{
-    char level[6];
-    char path[1024];
+class  ConfigParser {
 
-    struct LogConfig Initialize(const char *that_level, const char *that_path);
+    std::map<std::string,std::string>* config_storage_;
+    std::string config_file_;
+    char* file_buffer_;
+
+public:
+    ConfigParser();
+    ~ConfigParser();
+
+public:
+    int Init(const char* config_file);
+    const std::string& GetByKey(const char* key);
+
+private:
+    int ReadFile();
+    int ParseRaw(char* raw);
+    int ParseKeyValue(char* s);
+    int ParseFile();
+
 };
 
-LogConfig LogConfig::Initialize(const char *that_level, const char *that_path)
-{
-    memcpy(level, that_level, strlen(that_level) + 1);
-    memcpy(path, that_path, strlen(that_path) + 1);
-    return *this;
-}
-
-struct Config
-{
-    struct LogConfig config_log;
-
-    struct Config Initialize(const struct LogConfig that_log);
-};
-
-struct Config Config::Initialize(const struct LogConfig that_log)
-{
-    config_log.Initialize(that_log.level, that_log.path);
-}
-
-struct Config ParseConfigFile(const char *file_name)
-{
-    FILE *file_ptr = fopen(file_name, r);
-    if (filt_ptr == NULL)
-    {
-        fread(fileptr,fpstate())
-    }
-    return NULL;
-}
 
 #endif //C_REDIS_CLI_CONFIG_CONFIG_H_

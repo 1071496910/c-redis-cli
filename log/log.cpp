@@ -9,39 +9,13 @@ const char *LogLevelString[4] = {
 };
 
 
-#define LOGDEBUG(fmt,...) \
-  do {                                                                                  \
-    if ( LOG_LEVEL_DEBUG >= Logger::GetInstance()->GetLogThreshold()){                  \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
-    }                                                                                   \
-  }while(0)
 
-#define LOGINFO(fmt,...) \
-  do {                                                                                  \
-    if ( LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
-    }                                                                                   \
-  }while(0)
-
-#define LOGWARN(fmt,...) \
-  do {                                                                                  \
-    if ( LOG_LEVEL_WARN >= Logger::GetInstance()->GetLogThreshold()){                   \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
-    }                                                                                   \
-  }while(0)
-
-#define LOGERROR(fmt,...) \
-  do {                                                                                  \
-    if ( LOG_LEVEL_ERROR >= Logger::GetInstance()->GetLogThreshold()){                  \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
-    }                                                                                   \
-  }while(0)
 
 
 void FlushLogInBuffer(void);
 
 const int kDefaultLogThreshold = LOG_LEVEL_INFO;
-std::string kDefualtLogFile = "/tmp/tmp.log";
+std::string kDefualtLogFile = "/dev/stderr";
 const int kDefaultBufferSize = 128;
 
 typedef struct tm timeinfo;
@@ -55,7 +29,7 @@ int main() {
 
   for (int i = 0; i < 100; i++) {
     printf("%d\n",i);
-    LOGINFO("No.%d: log module test:%s%d%s\n", i, "INFO", "WARN","ERROR");
+    LOG_INFO("No.%d: log module test:%s%d%s\n", i, "INFO", "WARN","ERROR");
     sleep(1);
   };
 }
@@ -70,6 +44,7 @@ class Logger;
 Logger::Logger() 
     : log_threshold_(kDefaultLogThreshold),
       log_file_(kDefualtLogFile),
+      log_file_ptr_(NULL),
       log_buffed_size_(0),
       log_buffer_size_(kDefaultBufferSize) {}
   
@@ -95,7 +70,7 @@ int Logger::Log(const char* file,const int line,const char* func,const char *for
     struct timeval currentTime;
     gettimeofday(&currentTime,NULL);
     tm *timeinfos = localtime(&(currentTime.tv_sec));   
-    fprintf(log_file_ptr_,"[%d-%d-%d %d:%d:%d:%d] %s:%d %s [%s] ",  
+    fprintf(log_file_ptr_,"[%d-%d-%d %d:%d:%d:%ld] %s:%d %s [%s] ",  
                     timeinfos->tm_year+1900,    
                     timeinfos->tm_mon+1,       
                     timeinfos->tm_mday,  
@@ -122,3 +97,28 @@ int Logger::Log(const char* file,const int line,const char* func,const char *for
     return n;
 }
 
+int Logger::LevelUp(){
+  if (log_threshold_ < LOG_LEVEL_ERROR) {
+    log_threshold_++;
+  }
+}
+
+int Logger::LevelDown(){
+  if (log_threshold_ > LOG_LEVEL_DEBUG) {
+    log_threshold_--;
+  }
+}
+
+//Rotate 只会重新打开日志文件
+int Logger::Rotate(){
+  if (log_file_ptr_ != NULL) {
+    fclose(log_file_ptr_);
+    log_file_ptr_ = NULL;
+  }
+  log_file_ptr_ =  fopen(log_file_.c_str(),"a");
+  if (log_file_ptr_ == NULL) {
+    fprintf(stderr, "open file %s error: %s\n", log_file_.c_str(), strerror(errno));
+    return -1;
+  }
+  return 0;
+}
