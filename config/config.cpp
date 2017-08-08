@@ -1,17 +1,20 @@
 #include "config.h"
 
+#ifdef DEBUG
 
 int main()
 {
     ConfigParser config_parser;
-    config_parser.Init("/home/hpc/src/c-redis-cli/config/config.ini");
+    config_parser.Init("/root/c-redis-cli/config");
+    //config_parser.Init("/home/hpc/src/c-redis-cli/config/config.ini");
     printf("%s\n",config_parser.GetByKey("log","log.level"));
     printf("%s\n",config_parser.GetByKey("log","log.path"));
     printf("%s\n",config_parser.GetByKey("server","server.ip"));
     printf("%s\n",config_parser.GetByKey("server","server.port"));
-    //config_parser.Dump();
+    config_parser.Dump();
 
 }
+#endif
 
 ConfigParser::ConfigParser():
     config_storage_(NULL),
@@ -234,7 +237,10 @@ int ConfigParser::ParseFile(){
 }
 
 const char* ConfigParser::GetByKey(const char* section,const char* key){
-    return (*config_storage_)[std::string(section)+"_"+key].c_str();
+    if((*config_storage_).find(std::string(section)+"_"+key) != (*config_storage_).end()){
+        return (*config_storage_)[std::string(section)+"_"+key].c_str();
+    }
+    return "";
 }
 
 
