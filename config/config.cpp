@@ -48,6 +48,7 @@ char* TrimSpace(char* src){
         }
     }
     *left_ptr = '\0';
+    src[1023] = '\0';
     return src;
 }
 
