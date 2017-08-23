@@ -13,29 +13,29 @@
 
 #define LOG_DEBUG(fmt,...) \
   do {                                                                                                                   \
-    if ( Logger::GetInstance()->GetLogFilePtr()!=NULL && LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);                                    \
+    if (  LOG_LEVEL_DEBUG >= Logger::GetInstance()->GetLogThreshold()){                   \
+        Logger::GetInstance()->Log(LOG_LEVEL_DEBUG,__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);                                    \
     }                                                                                                                    \
   }while(0)
 
 #define LOG_INFO(fmt,...) \
   do {                                                                                  \
-    if ( Logger::GetInstance()->GetLogFilePtr()!=NULL && LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    if ( LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
+        Logger::GetInstance()->Log(LOG_LEVEL_INFO,__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
     }                                                                                   \
   }while(0)
 
 #define LOG_WARN(fmt,...) \
   do {                                                                                  \
-    if ( Logger::GetInstance()->GetLogFilePtr()!=NULL && LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    if ( LOG_LEVEL_WARN >= Logger::GetInstance()->GetLogThreshold()){                   \
+        Logger::GetInstance()->Log(LOG_LEVEL_WARN,__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
     }                                                                                   \
   }while(0)
 
 #define LOG_ERROR(fmt,...) \
   do {                                                                                  \
-    if ( Logger::GetInstance()->GetLogFilePtr()!=NULL && LOG_LEVEL_INFO >= Logger::GetInstance()->GetLogThreshold()){                   \
-        Logger::GetInstance()->Log(__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
+    if ( LOG_LEVEL_ERROR >= Logger::GetInstance()->GetLogThreshold()){                   \
+        Logger::GetInstance()->Log(LOG_LEVEL_ERROR,__FILE__,__LINE__,__FUNCTION__,fmt,##__VA_ARGS__);   \
     }                                                                                   \
   }while(0)
 
@@ -59,16 +59,13 @@ class Logger {
 
 public:
 
-
   static Logger *GetInstance();
 
-public:
-  int Log(const char* file,const int line,const char* func,const char *format, ...);
+  int Log(enum LogLevel log_level,const char* file,const int line,const char* func,const char *format, ...);
 
-public:
   FILE *GetLogFilePtr() { return log_file_ptr_; }
   int   GetLogThreshold() { return log_threshold_; }
-  int Init();
+  int Init(const char* log_file,enum LogLevel log_level);
   int LevelUp();
   int LevelDown();
   int Rotate();
@@ -78,7 +75,7 @@ private:
   Logger(const Logger &);
   Logger &operator=(const Logger &);
 
-private:
+
 };
 
 #endif //C_REDIS_CLI_LOG_LOG_H_

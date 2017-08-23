@@ -25,11 +25,11 @@ typedef struct tm timeinfo;
 
 int main() {
 
-  Logger::GetInstance()->Init();
+  Logger::GetInstance()->Init("/dev/stderr",LOG_LEVEL_INFO);
 
   for (int i = 0; i < 100; i++) {
     printf("%d\n",i);
-    LOG_INFO("No.%d: log module test:%s%d%s\n", i, "INFO", "WARN","ERROR");
+    LOG_ERROR("No.%d: log module test:%s%d%s\n", i, "INFO", "WARN","ERROR");
     sleep(1);
   };
 }
@@ -46,14 +46,21 @@ Logger::Logger()
       log_file_(kDefualtLogFile),
       log_file_ptr_(NULL),
       log_buffed_size_(0),
-      log_buffer_size_(kDefaultBufferSize) {}
+      log_buffer_size_(kDefaultBufferSize) 
+    {}
   
-int Logger::Init() {
+int Logger::Init(const char* log_file,enum LogLevel log_level) {
+  if(log_file != NULL) {
+    log_file_ = log_file;
+  }
+
   FILE *file_ptr = fopen(log_file_.c_str(), "a");
   if (file_ptr != NULL) {
     log_file_ptr_ = file_ptr;
   } else {
     fprintf(stderr, "open file %s error: %s\n", log_file_.c_str(), strerror(errno));
+    file_ptr = fopen(kDefualtLogFile.c_str(),"a");
+    fprintf(stderr, "use stderr as log output\n");
   }
 }
 
@@ -65,7 +72,7 @@ Logger *Logger::GetInstance() {
   return Logger::loggerInstance_;
 }
 
-int Logger::Log(const char* file,const int line,const char* func,const char *format, ...) {
+int Logger::Log(enum LogLevel log_level,const char* file,const int line,const char* func,const char *format, ...) {
 
     struct timeval currentTime;
     gettimeofday(&currentTime,NULL);
@@ -81,7 +88,7 @@ int Logger::Log(const char* file,const int line,const char* func,const char *for
                     file,
                     line,
                     func,
-                    LogLevelString[LOG_LEVEL_INFO]
+                    LogLevelString[log_level]
                     );
 
     va_list ap;
