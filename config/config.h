@@ -3,33 +3,24 @@
 
 #include <map>
 #include <string>
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <iostream>
 
-class  ConfigParser {
 
-    std::map<std::string,std::string>* config_storage_;
+const int kDefaultLineSize = 1024;
+class  Config {
+
+    std::map<std::string,std::string> config_storage_;
     std::string config_file_;
-    char* file_buffer_;
-    std::string current_section_;
+    char line_buffer[kDefaultLineSize];
+    bool is_inited_;
 
 public:
-    ConfigParser();
-    ~ConfigParser();
+    Config();
+    ~Config();
 
 public:
     int Init(const char* config_file);
     const char* GetByKey(const char* section,const char* key);
     void Dump();
-
-private:
-    int ReadFile();
-    int ParseRaw(char* raw);
-    int ParseKeyValue(char* s);
-    int ParseFile();
 
 };
 

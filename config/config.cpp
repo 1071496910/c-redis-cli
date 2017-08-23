@@ -1,252 +1,235 @@
 #include "config.h"
 
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <iostream>
+
+#define DEBUG
 #ifdef DEBUG
+
+struct KeyValuePair{
+    std::string key_;
+    std::string value_;
+};
+
 
 int main()
 {
-    ConfigParser config_parser;
-    config_parser.Init("/root/c-redis-cli/config");
-    //config_parser.Init("/home/hpc/src/c-redis-cli/config/config.ini");
-    printf("%s\n",config_parser.GetByKey("log","log.level"));
-    printf("%s\n",config_parser.GetByKey("log","log.path"));
-    printf("%s\n",config_parser.GetByKey("server","server.ip"));
-    printf("%s\n",config_parser.GetByKey("server","server.port"));
+    Config config_parser;
+    config_parser.Init("/home/hepanchen/Desktop/src/c-redis-cli/config/config.ini");
+    
+    //printf("%s\n",config_parser.GetByKey("log","log.level"));
+    //printf("%s\n",config_parser.GetByKey("log","log.path"));
+    //printf("%s\n",config_parser.GetByKey("server","server.ip"));
+    //printf("%s\n",config_parser.GetByKey("server","server.port"));
     config_parser.Dump();
 
 }
 #endif
 
-ConfigParser::ConfigParser():
-    config_storage_(NULL),
+
+
+char* TrimSpace(char* src){
+    if(src == NULL){
+        return NULL;
+    }
+    char* left_ptr = src;
+    char* right_ptr = src;
+    while(*right_ptr != '\0' && *right_ptr != '\n'){
+        if (*left_ptr == *right_ptr && *right_ptr != ' ' ) {
+            left_ptr++;
+            right_ptr++;
+        }else if (*left_ptr != *right_ptr && *right_ptr != ' ') {
+            *left_ptr++ = *right_ptr++;
+        }else {
+            right_ptr++;
+        }
+    }
+    *left_ptr = '\0';
+    return src;
+}
+
+char* TrimComment(char* src){
+    if(src == NULL){
+        return NULL;
+    }
+    char* tmp_ptr = src;
+    while(*tmp_ptr != '\0'){
+        if (*tmp_ptr == '#'){
+            *tmp_ptr++ = '\n';
+            *tmp_ptr = '\0';
+        }
+        tmp_ptr++;
+    }
+    return src;
+}
+
+char* Trim(char* src){
+    TrimComment(src);
+    TrimSpace(src);
+    return src;
+}
+
+Config::Config():
     config_file_(""),
-    file_buffer_(NULL),
-    current_section_("")
+    is_inited_(false)
 {}
 
-ConfigParser::~ConfigParser(){
-    if (config_storage_ != NULL){
-        delete config_storage_; 
+Config::~Config(){}
+
+// 0 true
+// -1 false
+// -2 NULL str
+int IsSection(const char* src){
+    if (src == NULL || *src == '\0') {
+        return -2;
     }
-    if (file_buffer_ != NULL){
-        delete file_buffer_; 
+    if (*src == '['){
+        return 0;
     }
+    return -1;
 }
 
-int ConfigParser::Init(const char* config_file){
+char* ParseSection(char* src){
+    src++;
+    char* left  = src;
+    char* right = src;
+    bool overSection = false;
+    while (*right != '\0'){
+    //while (*right != '\0' && *right != '\n'){
+        if(!overSection && *right != ']'){
+            right++;
+        }else if(!overSection && *right == ']'){
+            *right = '\0';
+            overSection = true;
+            right++;
+        }else{
+            return NULL;
+        }
+    }
+    return src;
+}
+
+KeyValuePair ParseKeyValue(char* src){
+    struct KeyValuePair k;
+    k.key_ = "";
+    k.value_ = "";
+    if(src == NULL){
+        return k;
+    }
+    char* key = src;
+    char* value = src;
+    char* value_right = src;
+    bool over_equal = false;
+    while(*value_right!='\0'){
+        if(!over_equal && *value_right!='='){
+            value++;
+            value_right++;
+        }else if(!over_equal && *value=='='){
+            *value++ = '\0';
+            value_right++;
+            over_equal = true;
+        //}else if (over_equal && *value_right=='\n'){
+        }else if (over_equal){
+            *value_right = '\0';
+        }else{
+            value_right++;
+        }
+    }
+    k.key_=key;
+    k.value_=value;
+    return k;
+
+}
+
+
+int Config::Init(const char* config_file){
+    if (config_file == NULL){
+        exit(1);
+    }
     config_file_ = config_file;
-    config_storage_ = new std::map<std::string,std::string>;
-    ReadFile();
-    ParseFile();
-    return 0;
-}
-
-int ConfigParser::ReadFile(){
-    FILE* file_ptr = fopen(config_file_.c_str(),"rb");
-    if (file_ptr == NULL){
+    FILE* config_file_ptr = fopen(config_file_.c_str(),"rb");
+    if (config_file_ptr == NULL){
         fprintf(stderr, "open file %s error: %s\n", config_file_.c_str(), strerror(errno));
         exit(1);
     }
 
-    /* 获取文件大小 */  
-    fseek (file_ptr , 0 , SEEK_END);  
-    int file_size = ftell (file_ptr);  
-    rewind (file_ptr);  
+    std::string current_section = "";
+    bool parseOver = false;
+    enum {
+        UnKownType = 0,
+        InSection  = 1,
+        InKeyValue = 2
+    };
+    int current_status = UnKownType;
+    char* section = NULL;
+    struct KeyValuePair kv;
 
-    file_buffer_ = (char*) malloc (sizeof(char)*file_size);  
-    if (file_buffer_ == NULL)  
-    {  
-        fprintf(stderr, "malloc memory error: %s\n", strerror(errno));
-        exit (2);  
-    }
+    while(!feof(config_file_ptr)){
+        if(fgets(line_buffer,kDefaultLineSize,config_file_ptr)!=NULL){
+            Trim(line_buffer);
+            //printf("%s",line_buffer);
+            parseOver = false;
+            current_status = UnKownType;
 
-    /* 将文件拷贝到buffer中 */  
-    int readed_size = fread (file_buffer_,1,file_size,file_ptr);  
-    if (readed_size != file_size)  
-    {  
-        fprintf(stderr, "read file %s error: %s\n", config_file_.c_str(), strerror(errno));
-        exit (3);  
-    }
+            while(!parseOver){
 
-  
-    fclose (file_ptr);  
-    //printf("DEBUG: in readfile:%s\n",file_buffer_);
-    return 0;  
+                //printf("DEUBG: current_status %d\n",current_status);
+                //printf("DEUBG: current_section %s\n",current_section.c_str());
+                switch(current_status){
+                    case UnKownType:
+                        if(IsSection(line_buffer)==0){
+                            current_status = InSection;
+                        }else if (current_section != "" && *line_buffer != '\0') {
+                            current_status = InKeyValue;
+                        }else {
+                            parseOver = true;
+                        }
+                    break;
 
-}
+                    case InSection:
+                        section = ParseSection(line_buffer);
+                        //printf("DEBUG: parsed section:%s\n",section);
+                        if (section!=NULL){
+                            current_section = section;
+                        }
+                        parseOver = true;
+                    break;
 
-char* TrimFront(char* s){
-    while(s!=NULL && *s != '\0') {
-        if (*s != ' ') {
-            break;
-        }
-        s++;
-    }
-    return s;
-}
+                    case InKeyValue:
+                        //printf("DEBUG: current_section:%s\n",current_section.c_str());
+                        kv = ParseKeyValue(line_buffer);
+                        config_storage_[current_section+"_"+kv.key_] = kv.value_;
+                        parseOver = true;
+                    break;
+                }
 
-char* TrimComment(char* s){
-    char* tmp = s;
-    while(tmp!=NULL&&*tmp!='\0'&&*tmp!='\n'){
-        if(*tmp=='#'){
-            *tmp = '\0';
-            break;
-        }
-        tmp++;
-    }
-    return s;
-}
-
-bool IsEmptyString(const char* s){
-    return s == NULL || *s == '\0';
-}
-
-//Return NULL 如果section
-char* ParseSection(char* s){
-    if (s==NULL){
-        return NULL;
-    }
-    bool isValid = false;
-    s = TrimFront(++s);//去除[这里的空格section]
-    char *tmp = s;
-    while(tmp!=NULL&&*tmp!='\0'&&*tmp!='\n'){
-        if(*tmp==']'){
-            *tmp='\0';
-            isValid = true;
-        } else if (*tmp==' ') {   //去除[section这里的空格]
-            *tmp='\0';
-        }
-        tmp++;
-    }
-    if (isValid == false){
-        fprintf(stderr, "parse file error: session %s is invalid\n", s);
-        return NULL;
-    }
-    //printf("DEBUG: ParseSection %s\n",s);
-    return s;
-}
-
-int ConfigParser::ParseKeyValue(char* s){
-    if(s == NULL){
-        return -1;
-    }
-    bool isValid = false;
-    bool hasEqualSymbol = false;
-    bool hasValue = false;
-    char* key = s;
-    char* tmp = s;
-    char* value = NULL;
-    //key loop
-    while(*tmp!='\0'&&*tmp!='\n'){
-        if(*tmp==' '||*tmp=='='){
-            if(*tmp == '='){
-                hasEqualSymbol = true;
-                *tmp++ ='\0';
-                break;
-            }else{
-                *tmp++ = '\0';
             }
-        }else{
-            tmp++;
+            
+
         }
-    }
-    
-    //value loop
-    tmp = TrimFront(tmp);
-    char* tmp2 = tmp;
-    while(*tmp2!='\0'){
-        if(*tmp2!='#'&&*tmp2!='\n'&&*tmp2!=' '&&*tmp2!='\0'){
-            tmp2++;
-        }else {
-            if(*tmp2!='\0'){
-                *tmp2='\0';
-            }
-            break;
-        }
-        hasValue = true;
-        value = tmp;
-    }
-    isValid = hasValue && hasEqualSymbol;
-    if (! isValid){
-    //    fprintf(stderr, "parse file error: value: %s is invalid\n", s);
-        return 0;
-    }
-    //printf("[%s]%s\n",key,value);
-    
-    (*config_storage_)[current_section_+"_"+key] = value;
+    } 
+
     return 0;
 }
 
-int ConfigParser::ParseRaw(char* raw){
+const char* Config::GetByKey(const char* section,const char* key){
+    std::map<std::string,std::string>::iterator it;
+    it = config_storage_.find(std::string(section)+"_"+key);
 
-    
-    //printf("DEBUG: before trim comment:%s\n",raw);
-    raw = TrimComment(raw);
-    //printf("DEBUG: after trim comment:%s\n",tmp);
-    raw = TrimFront(raw);
-    //printf("DEBUG: after trim:%s\n",tmp);
-    //in session
-    if(*raw == '['){
-        raw = ParseSection(raw);
-        if(!IsEmptyString(raw)){
-            current_section_ = raw;
-        }
-    }else{ //in key value
-        if (current_section_ != ""){
-            ParseKeyValue(raw);
-        }
+    if (it != config_storage_.end()) {
+        return it->second.c_str();
     }
-    return 0;
-}
 
-char* NextRaw(char* s){
-    //printf("DEBUG at next raw%s\n",s);
-    if (s==NULL){
-        return NULL;
-    }
-    while(*s!='\n'&&*s!='\0'){
-        s++;
-    }
-    //printf("DEBUG at next raw%s\n",s);
-    if(*s=='\n'){
-        return ++s;
-      //  printf("Next Raw%s\n",s);
-    }
-    return NULL;
-}
-
-int ConfigParser::ParseFile(){
-    char * raw = file_buffer_;
-    while(1)
-    {
-        //printf("DEBUG: in parseFile\n");
-        char* next_raw=NextRaw(raw);
-        //printf("DEBUG: next raw:\n%s",next_raw);
-        //printf("%s\n",raw);
-        ParseRaw(raw);
-        //printf("DEBUG: after parse next raw%s\n",next_raw);
-        raw = next_raw;
-        if (raw == NULL){
-            break;
-        }
-    }
-    if (file_buffer_ != NULL) {
-        delete file_buffer_;
-        file_buffer_ = NULL;
-    }
-    return 0;
-}
-
-const char* ConfigParser::GetByKey(const char* section,const char* key){
-    if((*config_storage_).find(std::string(section)+"_"+key) != (*config_storage_).end()){
-        return (*config_storage_)[std::string(section)+"_"+key].c_str();
-    }
     return "";
 }
 
 
-void ConfigParser::Dump(){
+void Config::Dump(){
     std::map<std::string,std::string>::iterator i;
-    for(i=config_storage_->begin();i!=config_storage_->end();i++)
+    for(i=config_storage_.begin();i!=config_storage_.end();i++)
     {
         printf("[%s]%s\n",i->first.c_str(),i->second.c_str());
     }
