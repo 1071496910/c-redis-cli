@@ -217,6 +217,10 @@ int Config::Init(const char* config_file){
 }
 
 const char* Config::GetByKey(const char* section,const char* key){
+    if (!is_inited_){
+        fprintf(stderr, "error: not inited\n");
+        exit(1);
+    }
     std::map<std::string,std::string>::iterator it;
     it = config_storage_.find(std::string(section)+"_"+key);
 
