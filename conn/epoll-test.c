@@ -96,13 +96,13 @@ int epoll_set_in(int epfd,int fd)
     epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &event);
 }
 
-int epoll_set_in_callback(int epfd,int fd)
+int epoll_set_in_callback(int epfd,int fd,struct SendBlock send_block)
 {
     struct epoll_event event;
     event.data.ptr = new MsgBlock;
-    void* ptr = event.data.ptr;
-    ((MsgBlock*)ptr)->fd = fd;
-    ((MsgBlock*)ptr)->CallBackFunc = callbackFunc;
+    SendBlock* ptr = (SendBlock*)(event.data.ptr);
+    ptr->fd = send_block.conn_socket_;
+    ptr->CallBackFunc = send_block.get_msg_func;
 
     event.events = EPOLLIN;
     epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &event);

@@ -17,6 +17,12 @@
 
 const int maxEventsNum = 1024;
 
+struct SendBlock{
+    std::string msg_;
+    int conn_socket_;
+    FuncPtr get_msg_func;
+};
+
 void printerrno()
 {
     printf("errno:%d , error: %s\n", errno, strerror(errno));
@@ -40,7 +46,9 @@ int epoll_add(int epfd, int fd, int epoll_ev, bool enable_et, bool oneshot)
 {
 
     struct epoll_event event;
-    event.data.fd = fd;
+    event.data.ptr = new SendBlock;
+    SendBlock* ptr = (SendBlock*)(event.data.ptr);
+    ptr->conn_socket_ = fd;
     event.events = epoll_ev;
     if (enable_et)
     {
@@ -61,20 +69,28 @@ int epoll_add(int epfd, int fd, int epoll_ev, bool enable_et, bool oneshot)
 int epoll_set_inout(int epfd,int fd)
 {
     epoll_event event;
-    event.data.fd = fd;
+    event.data.ptr = new SendBlock;
+    SendBlock* ptr = (SendBlock*)(event.data.ptr);
+    ptr->conn_socket_ = fd;
     event.events = EPOLLIN | EPOLLOUT;
     epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &event);
 }
 
 
-typedef void(*FuncPtr)(int socket); //定义函数指针类型  
 
-struct SendBlock{
-    std::string msg_;
-    int conn_socket_;
-    FuncPtr get_msg_func;
-};
+int epoll_set_in_callback(int epfd,struct SendBlock send_block)
+{
+    struct epoll_event event;
+    //memset();
+    event.data.ptr = new SendBlock;
+    SendBlock* ptr = (SendBlock*)(event.data.ptr);
+    ptr->conn_socket_ = send_block.conn_socket_;
+    ptr->get_msg_func = send_block.get_msg_func;
 
+    event.events = EPOLLIN;
+    epoll_ctl(epfd, EPOLL_CTL_MOD, ptr->conn_socket_, &event);
+
+}
 
 AsyncConn::AsyncConn(const char* conn_ip,int conn_port)
         :conn_socket_(-1),
@@ -95,9 +111,11 @@ int AsyncConn::Connect(){
         printerrno();
     }
 
+    //if
     setnonblock(conn_socket_);
     if (connect(conn_socket_, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
+        //判断连接成功
         if (errno != EINPROGRESS) {
             printf("conn error\n");
             printerrno();
@@ -110,7 +128,7 @@ int AsyncConn::Connect(){
 int AsyncConn::Send(const char* send_str,FuncPtr get_msg_callback){
     struct SendBlock msg_block = {send_str,conn_socket_,get_msg_callback};
     send_queue_.push(msg_block);
-    printf("DEBUG: send queue size %d\n",send_queue_.size());
+    //printf("DEBUG: send queue size %d\n",send_queue_.size());
 }
 
 int AsyncConn::Wait(){
@@ -126,9 +144,8 @@ int AsyncConn::Wait(){
     
     while(1)
     {
-        sleep(1);
         int ret = epoll_wait(epfd, evs, maxEventsNum, -1);
-        printf("DEBUG: after apoll_wait\n");
+        //printf("DEBUG: after apoll_wait\n");
         if (ret < 0)
         {
             printf("epoll wait error\n");
@@ -143,7 +160,7 @@ int AsyncConn::Wait(){
             }
             if (evs[i].events & EPOLLIN)
             {
-               printf("in recv block\n");
+               //printf("in recv block\n");
                SendBlock* ptr = (SendBlock*)(evs[i].data.ptr);
                ptr->get_msg_func(ptr->conn_socket_);
                epoll_set_inout(epfd,conn_socket_);
@@ -152,21 +169,17 @@ int AsyncConn::Wait(){
             }
             if (evs[i].events & EPOLLOUT)
             {
-                printf("in send block\n");
+                //printf("in send block\n");
                 if (!send_queue_.empty()){
                     struct SendBlock send_block_ = send_queue_.front();
-                    struct epoll_event event;
-                    event.data.ptr = new SendBlock;
-                    SendBlock* ptr = (SendBlock*)(event.data.ptr);
-                    ptr->msg_ = send_block_.msg_;
-                    send(conn_socket_, ptr->msg_.c_str(), strlen(ptr->msg_.c_str())+1,0 );
-                    ptr->get_msg_func = send_block_.get_msg_func;
-                    ptr->conn_socket_ = conn_socket_;
-                    event.events = EPOLLIN;
-                    epoll_ctl(epfd, EPOLL_CTL_MOD, conn_socket_, &event); 
+                    send(send_block_.conn_socket_, send_block_.msg_.c_str(), strlen(send_block_.msg_.c_str())+1,0 );
+                    epoll_set_in_callback(epfd,send_block_);
+
                     send_queue_.pop();
+                }else{
+                    printf("send over\n");
                 }
-                printf("after send block\n");
+                //printf("after send block\n");
             }
         }
     }
@@ -175,19 +188,21 @@ int AsyncConn::Wait(){
 void get_msg(int socket) {
     char buf[1024] = {0};
     read(socket, buf, 1024);
-    printf("recv: %s \n",buf);
+    //printf("recv: %s \n",buf);
 }
 void get_msg2(int socket) {
     char buf[1024] = {0};
     read(socket, buf, 1024);
-    printf("In get msg2 recv: %s \n",buf);
+    //printf("In get msg2 recv: %s \n",buf);
 }
 
 int main(){
     AsyncConn ac("127.0.0.1",8080);
     ac.Connect();
-    ac.Send("hello\n",get_msg);
-    ac.Send("world\n",get_msg2);
+    for (int i = 0 ; i<10000;i++){
+        ac.Send("hello\n",get_msg);
+        ac.Send("world\n",get_msg2);
+    }
     ac.Wait();
     return 0;
 }
