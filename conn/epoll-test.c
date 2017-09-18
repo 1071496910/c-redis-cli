@@ -13,6 +13,8 @@
 #include <queue>
 #include <string>
 
+#include "el/el.cpp"
+
 const unsigned int serverPort = 8080;
 const char *serverIP = "127.0.0.1";
 //const unsigned int serverPort = 3000;
@@ -199,7 +201,7 @@ int main()
         printf("create epoll fd error\n");
         printerrno();
     }
-    //epoll_add(epfd, connSocket, EPOLLOUT, false , false);
+
     epoll_add_callback(epfd, connSocket, EPOLLOUT,callbackFunc, false , false);
 
     while (1)

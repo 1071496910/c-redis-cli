@@ -15,7 +15,6 @@
 #include "conn.h"
 
 
-const int maxEventsNum = 1024;
 
 struct SendBlock{
     std::string msg_;
@@ -26,6 +25,28 @@ struct SendBlock{
 void printerrno()
 {
     printf("errno:%d , error: %s\n", errno, strerror(errno));
+}
+
+bool checkConnected(int connSocket) {
+    int err = 0;
+    socklen_t errlen = sizeof(err);
+
+    if (getsockopt(connSocket, SOL_SOCKET, SO_ERROR, &err, &errlen) == -1) {
+        printf("get socket opt err\n");
+        printerrno();
+        return false;
+    }
+
+    if (err) {
+        if(err == EINPROGRESS) {
+            printf("einprogress\n");
+        }
+        errno = err;
+        printerrno();
+        return false;
+    }
+
+    return true;
 }
 
 int setnonblock(int fd)
@@ -66,6 +87,7 @@ int epoll_add(int epfd, int fd, int epoll_ev, bool enable_et, bool oneshot)
     }
 }
 
+
 int epoll_set_inout(int epfd,int fd)
 {
     epoll_event event;
@@ -73,10 +95,38 @@ int epoll_set_inout(int epfd,int fd)
     SendBlock* ptr = (SendBlock*)(event.data.ptr);
     ptr->conn_socket_ = fd;
     event.events = EPOLLIN | EPOLLOUT;
-    epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &event);
+    if (epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &event) < 0 )
+    {
+        printf("epoll set inout error\n");
+        printerrno();
+    }
 }
 
 
+int epoll_add_in_callback(int epfd, struct SendBlock send_block, bool enable_et, bool oneshot)
+{
+
+    struct epoll_event event;
+    event.data.ptr = new SendBlock;
+    SendBlock* ptr = (SendBlock*)(event.data.ptr);
+    ptr->conn_socket_ = send_block.conn_socket_;
+    ptr->get_msg_func = send_block.get_msg_func;
+    event.events = EPOLLIN;
+    if (enable_et)
+    {
+        event.events |= EPOLLET;
+    }
+    if (oneshot)
+    {
+        event.events |= EPOLLONESHOT;
+    }
+
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, ptr->conn_socket_, &event) < 0)
+    {
+        printf("epoll add error\n");
+        printerrno();
+    }
+}
 
 int epoll_set_in_callback(int epfd,struct SendBlock send_block)
 {
@@ -88,7 +138,12 @@ int epoll_set_in_callback(int epfd,struct SendBlock send_block)
     ptr->get_msg_func = send_block.get_msg_func;
 
     event.events = EPOLLIN;
-    epoll_ctl(epfd, EPOLL_CTL_MOD, ptr->conn_socket_, &event);
+    printf("epfd:%d\n",epfd);
+    printf("connfd:%d\n",ptr->conn_socket_);
+    if( epoll_ctl(epfd, EPOLL_CTL_MOD, ptr->conn_socket_, &event) < 0 ) {
+        printf("epoll set in callback error\n");
+        printerrno();
+    }
 
 }
 
@@ -97,7 +152,14 @@ AsyncConn::AsyncConn(const char* conn_ip,int conn_port)
          conn_ip_(conn_ip),
          conn_port_(conn_port)
 
-{}
+{
+    epfd = epoll_create1(0);
+    if (epfd < 0)
+    {
+        printf("create epoll fd error\n");
+        printerrno();
+    }
+}
 
 int AsyncConn::Connect(){
     struct sockaddr_in server;
@@ -113,7 +175,8 @@ int AsyncConn::Connect(){
 
     //if
     setnonblock(conn_socket_);
-    if (connect(conn_socket_, (struct sockaddr *)&server, sizeof(server)) < 0)
+    int ret = connect(conn_socket_, (struct sockaddr *)&server, sizeof(server));
+
     {
         //判断连接成功
         if (errno != EINPROGRESS) {
@@ -122,25 +185,29 @@ int AsyncConn::Connect(){
             exit(1);
         }
     }
+    epoll_add(epfd, conn_socket_, EPOLLOUT, false , false);
 
 }
 
 int AsyncConn::Send(const char* send_str,FuncPtr get_msg_callback){
-    struct SendBlock msg_block = {send_str,conn_socket_,get_msg_callback};
-    send_queue_.push(msg_block);
-    //printf("DEBUG: send queue size %d\n",send_queue_.size());
+    printf("DEBUG: check socket: %d\n",conn_socket_);
+    if (checkConnected(conn_socket_)) {
+        struct SendBlock send_block_ = {send_str,conn_socket_,get_msg_callback};
+        sleep(1);
+        int send_ret = send(send_block_.conn_socket_, send_block_.msg_.c_str(), strlen(send_block_.msg_.c_str())+1,0 );
+        if (send_ret < 0 ) {
+            printf("send error");
+            printerrno();
+        }
+        
+        epoll_set_in_callback(epfd,send_block_);
+    } else {
+        printf("socket not connected!\n");
+    }
 }
 
 int AsyncConn::Wait(){
-    epoll_event evs[maxEventsNum];
-    int epfd = epoll_create1(0);
-    if (epfd < 0)
-    {
-        printf("create epoll fd error\n");
-        printerrno();
-    }
 
-    epoll_add(epfd, conn_socket_, EPOLLOUT, false , false);
     
     while(1)
     {
@@ -160,25 +227,23 @@ int AsyncConn::Wait(){
             }
             if (evs[i].events & EPOLLIN)
             {
-               //printf("in recv block\n");
+               printf("in recv block\n");
                SendBlock* ptr = (SendBlock*)(evs[i].data.ptr);
                ptr->get_msg_func(ptr->conn_socket_);
-               epoll_set_inout(epfd,conn_socket_);
-               delete ptr;
+               //epoll_set_inout(epfd,ptr->conn_socket_);
+               //delete ptr;
                
             }
             if (evs[i].events & EPOLLOUT)
             {
                 //printf("in send block\n");
-                if (!send_queue_.empty()){
-                    struct SendBlock send_block_ = send_queue_.front();
-                    send(send_block_.conn_socket_, send_block_.msg_.c_str(), strlen(send_block_.msg_.c_str())+1,0 );
-                    epoll_set_in_callback(epfd,send_block_);
+                //if (!send_queue_.empty()){
+                //    struct SendBlock send_block_ = send_queue_.front();
 
-                    send_queue_.pop();
-                }else{
-                    printf("send over\n");
-                }
+                //    send_queue_.pop();
+                //}else{
+                //    printf("send over\n");
+                //}
                 //printf("after send block\n");
             }
         }
@@ -188,12 +253,12 @@ int AsyncConn::Wait(){
 void get_msg(int socket) {
     char buf[1024] = {0};
     read(socket, buf, 1024);
-    //printf("recv: %s \n",buf);
+    printf("recv: %s \n",buf);
 }
 void get_msg2(int socket) {
     char buf[1024] = {0};
     read(socket, buf, 1024);
-    //printf("In get msg2 recv: %s \n",buf);
+    printf("In get msg2 recv: %s \n",buf);
 }
 
 int main(){

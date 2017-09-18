@@ -6,11 +6,14 @@
 
 typedef void(*FuncPtr)(int socket); //定义函数指针类型  
 
+const int maxEventsNum = 1024;
+
 class AsyncConn{
     int conn_socket_;
     int conn_port_;
     std::string conn_ip_;
-    std::queue<struct SendBlock> send_queue_;
+    struct epoll_event evs[maxEventsNum];
+    int epfd;
 
 
 public:
