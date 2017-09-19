@@ -43,10 +43,28 @@ struct userBuffer{
     char writeBuffer[1024];
 };
 
-struct Sender{
+
+class Sender : public EventHandler  {
+
    struct userBuffer buffer;
    int fd;
    struct El* el;
+ 
+public:
+   int rFunc();
+   int wFunc() {
+   char buff[1024] = {0};
+   int ret = read(s->fd, s->buffer.readBuffer, 1024);
+   if (ret <= 0 ) {
+       printf("read error\n");
+       printerrno();
+   }
+   printf("recv:%s\n",s->buffer.readBuffer);
+   bzero(s->buffer.readBuffer,1024);
+   s->el->AddIOWriteEvent(s->fd,writeFunc,s);
+
+   }
+   int eFunc();
 
 };
 
@@ -105,12 +123,12 @@ int main()
 
     sender->fd = connSocket;
 
-    El* eloop = new El;
-    sender->el = eloop;
-    eloop->AddIOWriteEvent(connSocket,writeFunc,sender);
+    El eloop;
+    sender->el = &eloop;
+    eloop.AddIOWriteEvent(connSocket,writeFunc,sender);
     printf("DEBUG: after add write\n");
     
-    eloop->MainLoop();
+    eloop.MainLoop();
 
     return 0;
 }

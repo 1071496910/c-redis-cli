@@ -1,7 +1,3 @@
-#ifndef C_REDIS_CLI_EL_EL_H_
-#define C_REDIS_CLI_EL_EL_H_
-
-
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -14,7 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 
-const int maxEventsNum = 1024;
+#include "el.h"
 
 typedef void(*FuncPtr)(void* data); //定义函数指针类型  
 
@@ -23,28 +19,6 @@ void printerrno()
     printf("errno:%d , error: %s\n", errno, strerror(errno));
 }
 
-struct IOEvent {
-    int listened;
-    int events;
-    FuncPtr rFunc;
-    FuncPtr wFunc;
-    FuncPtr eFunc;
-    void* clientData;
-};
-
-class El {
-    int epfd_;
-    struct IOEvent listened_events_[maxEventsNum];
-//    std::list<struct IOEvent> fired_events_;
-
-public:
-    El();
-    int AddIOReadEvent(int fd,FuncPtr rFunc,void* clientData);
-    int AddIOWriteEvent(int fd,FuncPtr wFunc,void* clientData);
-    int DelIOWriteEvent(int fd);
-    int AddIOErrorEvent(int fd,FuncPtr eFunc);
-    int MainLoop();
-};
 
 El::El() {
     epfd_ = epoll_create1(0);
@@ -56,14 +30,13 @@ El::El() {
     }
 }
 
-int El::AddIOReadEvent(int fd,FuncPtr rFunc,void* clientData){
+int El::AddIOReadEvent(int fd,struct EventHandler* eventHandler){
     struct epoll_event event;
     int opt = EPOLL_CTL_ADD;
     event.events = EPOLLIN;
     event.data.fd = fd;
 
-    listened_events_[fd].clientData = clientData;
-    listened_events_[fd].rFunc = rFunc;
+    listened_events_[fd].eventHandler = eventHandler;
 
     if (listened_events_[fd].listened){
         event.events |= listened_events_[fd].events;
@@ -86,15 +59,14 @@ int El::AddIOReadEvent(int fd,FuncPtr rFunc,void* clientData){
 }
 
 
-int El::AddIOWriteEvent(int fd,FuncPtr wFunc,void* clientData){
-    printf("DEBUG in add io write\n");
+int El::AddIOWriteEvent(int fd,struct EventHandler* eventHandler){
+    //printf("DEBUG in add io write\n");
     struct epoll_event event;
     int opt = EPOLL_CTL_ADD;
     event.events = EPOLLOUT;
     event.data.fd = fd;
 
-    listened_events_[fd].clientData = clientData;
-    listened_events_[fd].wFunc = wFunc;
+    listened_events_[fd].eventHandler = eventHandler;
 
     if (listened_events_[fd].listened){
         event.events |= listened_events_[fd].events;
@@ -141,14 +113,14 @@ int El::DelIOWriteEvent(int fd){
 int El::MainLoop(){
     while(1)
     {
-        sleep(1);
+        //sleep(1);
         struct epoll_event evs[maxEventsNum];
         int ret = epoll_wait(epfd_, evs, maxEventsNum, -1);
         int fd;
-        printf("DEBUG: after apoll_wait\n");
+        //printf("DEBUG: after apoll_wait\n");
         if (ret < 0)
         {
-            printf("epoll wait error\n");
+            //printf("epoll wait error\n");
             printerrno();
         }
 
@@ -160,27 +132,24 @@ int El::MainLoop(){
             }
             if (evs[i].events & EPOLLIN)
             {
-               printf("in recv block\n");
-               printf("get evs%d\n",evs[i].data.fd);
-               printf("after get evs\n");
+               //printf("in recv block\n");
+               //printf("get evs%d\n",evs[i].data.fd);
+               //printf("after get evs\n");
                //fd = evs[i].data.fd;
-               printf("DEBUG: before process callback\n");
-               listened_events_[fd].rFunc(listened_events_[fd].clientData);
-               printf("DEBUG: after process callback");
+               //printf("DEBUG: before process callback\n");
+               listened_events_[fd].eventHandler->rFunc();
+               //printf("DEBUG: after process callback\n");
 
                
             }
             if (evs[i].events & EPOLLOUT)
             {
-                printf("in send block\n");
+                //printf("in send block\n");
                 fd = evs[i].data.fd;
-                listened_events_[fd].wFunc(listened_events_[fd].clientData);
+                listened_events_[fd].eventHandler->wFunc();
 
             }
         }
     }
 
 }
-
-
-#endif //C_REDIS_CLI_EL_EL_H_
