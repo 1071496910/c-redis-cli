@@ -2,6 +2,8 @@
 #define C_REDIS_CLI_EL_EL_H_
 
 
+#include <hash_map>
+
 typedef void(*FuncPtr)(void* data); //定义函数指针类型  
 
 const int maxEventsNum = 1024;
@@ -24,7 +26,8 @@ struct IOEvent {
 
 class El {
     int epfd_;
-    struct IOEvent listened_events_[maxEventsNum];
+    //struct IOEvent listened_events_[maxEventsNum];
+      struct __gnu_cxx::hash_map<int,struct IOEvent> listened_events_;
 //    std::list<struct IOEvent> fired_events_;
 
 public:

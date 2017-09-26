@@ -135,7 +135,7 @@ int El::MainLoop(){
                //printf("in recv block\n");
                //printf("get evs%d\n",evs[i].data.fd);
                //printf("after get evs\n");
-               //fd = evs[i].data.fd;
+               fd = evs[i].data.fd;
                //printf("DEBUG: before process callback\n");
                listened_events_[fd].eventHandler->rFunc();
                //printf("DEBUG: after process callback\n");
